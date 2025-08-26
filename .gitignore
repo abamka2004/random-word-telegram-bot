@@ -1,0 +1,12 @@
+.venv/
+.env
+uv.lock
+
+.idea/
+.vscode/
+.ropeproject/
+
+**/__pycache__/
+
+**/*.db
+/migrations/versions/
