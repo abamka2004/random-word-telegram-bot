@@ -9,4 +9,3 @@ uv.lock
 **/__pycache__/
 
 **/*.db
-/migrations/versions/
