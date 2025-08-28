@@ -1,11 +1,16 @@
+# Envinronment
 .venv/
 .env
 uv.lock
 
+# Python
+**/__pycache__/
+
+# Database
+**/*.db
+**/*.sqlite3
+
+# IDE
 .idea/
 .vscode/
 .ropeproject/
-
-**/__pycache__/
-
-**/*.db
