@@ -54,7 +54,7 @@ alembic upgrade head
 5. Run the bot:
 
 ```bash
-uv python main.py
+uv run python src/main.py
 ```
 
 ### 📁 Project Structure
@@ -141,7 +141,7 @@ alembic upgrade head
 5. Запустите бота:
 
 ```bash
-uv python main.py
+uv run python src/main.py
 ```
 
 ### 📁 Структура проекта
