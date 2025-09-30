@@ -1,7 +1,6 @@
 # Envinronment
 .venv/
 .env
-uv.lock
 
 # Python
 **/__pycache__/
