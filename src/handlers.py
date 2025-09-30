@@ -86,7 +86,8 @@ async def successful_pay_explain(message: Message):
         explanation = await get_word_explanation(word)
         if explanation:
             await message.answer(
-                f"📖 Объяснение слова <b>{word}</b>:\n\n{explanation}",
+                f"📖 Объяснение слова <b>{word}</b>:\n\n{explanation}\n\n"
+                f"<tg-spoiler>Ответ сгенерирован ИИ, возможны ошибки.</tg-spoiler>",
                 parse_mode="HTML"
             )
             await message.bot.delete_message(message.from_user.id, info.message_id)
