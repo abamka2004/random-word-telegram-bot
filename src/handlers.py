@@ -90,7 +90,7 @@ async def successful_pay_explain(message: Message):
                 f"<tg-spoiler>Ответ сгенерирован ИИ, возможны ошибки.</tg-spoiler>",
                 parse_mode="HTML"
             )
-            await message.bot.delete_message(message.from_user.id, info.message_id)
+            await info.delete()
         else:
             raise Exception
 
