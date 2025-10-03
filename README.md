@@ -43,6 +43,7 @@ uv sync
 ```env
 BOT_TOKEN=your_telegram_bot_token
 OPENROUTER_TOKEN=your_openrouter_api_token
+UNSPLASH_TOKEN=your_api_unsplash_token
 ```
 
 4. Initialize the database:
@@ -68,6 +69,7 @@ random-word/
 │   └── extra/
 │       ├── config.py
 │       ├── keyboards.py
+│       ├── shitpost_utils.py
 │       └── utils.py
 ├── migrations/
 ├── words.txt
@@ -130,6 +132,7 @@ uv sync
 ```env
 BOT_TOKEN=your_telegram_bot_token
 OPENROUTER_TOKEN=your_openrouter_api_token
+UNSPLASH_TOKEN=your_api_unsplash_token
 ```
 
 4. Инициализируйте базу данных:
@@ -155,6 +158,7 @@ random-word/
 │   └── extra/
 │       ├── config.py
 │       ├── keyboards.py
+│       ├── shitpost_utils.py
 │       └── utils.py
 ├── migrations/
 ├── words.txt
