@@ -4,15 +4,18 @@ import logging
 import random
 import asyncio
 import re
+import io
 
 import aiohttp
 import emoji
+from PIL import Image, ImageDraw
 from aiogram import Bot
 
 from src.database.db_requests import get_subscribers
 from src.database.db_models import User
 from src.extra.config import get_openrouter_token
 from src.extra.keyboards import action_kb
+from src.extra.shitpost_utils import setup_font, add_text_to_image, save_image_to_bytes
 
 # Список подписчиков
 subscribers: list[User]
@@ -34,6 +37,38 @@ async def get_random_word() -> str:
 
 async def get_random_emoji() -> str:
     return random.choice(all_emojis)
+
+
+async def do_random_shitpost(image: bytes) -> Optional[bytes]:
+    # Получаем случайные слова
+    word1 = await get_random_word()
+    word2 = await get_random_word()
+    word3 = await get_random_word()
+
+    # Формируем текст для щитпоста
+    top_text = f"{word1.upper()} {word2.upper()}"
+    bottom_text = word3.upper()
+
+    try:
+        # Открываем и подготавливаем изображение
+        img = Image.open(io.BytesIO(image))
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+
+        draw = ImageDraw.Draw(img)
+
+        # Настраиваем шрифт
+        font = await setup_font(top_text, img.width)
+
+        # Добавляем текст на изображение
+        add_text_to_image(draw, font, top_text, bottom_text, img.width, img.height)
+
+        # Сохраняем результат
+        return save_image_to_bytes(img)
+
+    except Exception as e:
+        logging.error(f"Ошибка при создании щитпоста: {e}")
+        return None
 
 
 async def update_subscribers_list() -> list[User]:
@@ -121,7 +156,7 @@ async def get_word_explanation(word: str) -> Optional[str]:
         return None
     except Exception as e:
         logging.error(f"Error getting word explanation: {e}")
-        return None
+        raise e
 
 
 def clean_explanation_text(text: str) -> str:

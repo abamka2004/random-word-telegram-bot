@@ -1,10 +1,11 @@
 from aiogram.filters import CommandStart, Command
-from aiogram.types import Message, CallbackQuery, LabeledPrice, PreCheckoutQuery
+from aiogram.types import Message, CallbackQuery, LabeledPrice, PreCheckoutQuery, BufferedInputFile
 from aiogram import Router, F
 import logging
 
 from src.extra.keyboards import subscribe_kb, unsubscribe_kb
-from src.extra.utils import send_word, get_word_explanation
+from src.extra.shitpost_utils import get_random_image
+from src.extra.utils import send_word, get_word_explanation, do_random_shitpost
 from src.database import db_requests as db
 
 router = Router()
@@ -90,7 +91,7 @@ async def successful_pay_explain(message: Message):
                 f"<tg-spoiler>Ответ сгенерирован ИИ, возможны ошибки.</tg-spoiler>",
                 parse_mode="HTML"
             )
-            await message.bot.delete_message(message.from_user.id, info.message_id)
+            await info.delete()
         else:
             raise Exception
 
@@ -99,6 +100,26 @@ async def successful_pay_explain(message: Message):
         await message.answer(
             "⚠️ Извините, произошла ошибка при обработке оплаты. Можете вернуть средства с помощью /refund"
         )
+
+
+@router.message(Command("shitpost"))
+async def shitpost(message: Message):
+    info = await message.answer("Пожалуйста, ожидайте...")
+
+    try:
+        picture_bytes = await get_random_image()
+        shitpost_img = await do_random_shitpost(picture_bytes)
+
+        if shitpost_img:
+            await message.answer_photo(BufferedInputFile(shitpost_img, "shitpost.jpeg"))
+
+    except Exception as e:
+        logging.error(f"Error sending the shitpost: {e}")
+        await message.answer(
+            "⚠️ Извините, произошла ошибка при отправке щитпоста"
+        )
+    finally:
+        await info.delete()
 
 
 @router.message(Command("refund"))
