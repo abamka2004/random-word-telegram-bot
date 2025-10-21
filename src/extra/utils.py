@@ -38,7 +38,7 @@ async def get_random_emoji() -> str:
     return random.choice(all_emojis)
 
 
-async def do_random_shitpost(image: bytes) -> bytes | None:
+async def do_random_shitpost(image: bytes) -> bytes:
     # Получаем случайные слова
     word1 = await get_random_word()
     word2 = await get_random_word()
