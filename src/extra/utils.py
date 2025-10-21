@@ -67,7 +67,7 @@ async def do_random_shitpost(image: bytes) -> bytes | None:
 
     except Exception as e:
         logging.error(f"Ошибка при создании щитпоста: {e}")
-        return None
+        raise
 
 
 async def update_subscribers_list() -> list[User]:
