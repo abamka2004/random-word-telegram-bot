@@ -1,7 +1,6 @@
 import io
 import logging
 from pathlib import Path
-from typing import Optional
 
 import aiohttp
 from PIL import ImageFont, ImageDraw
@@ -13,7 +12,7 @@ from src.extra.config import get_unsplash_token
 project_root = Path(__file__).resolve().parent.parent.parent
 
 
-async def get_random_image() -> Optional[bytes]:
+async def get_random_image() -> bytes | None:
     access_key = get_unsplash_token()
     url = "https://api.unsplash.com/photos/random"
 
@@ -64,9 +63,8 @@ async def setup_font(text: str, image_width: int) -> FreeTypeFont:
         return ImageFont.load_default()
 
 
-def add_text_to_image(
-        draw: ImageDraw.ImageDraw, font: FreeTypeFont, top_text: str, bottom_text: str, image_width: int, image_height: int
-):
+def add_text_to_image(draw: ImageDraw.ImageDraw, font: FreeTypeFont,
+                      top_text: str, bottom_text: str, image_width: int, image_height: int):
     """Добавляет текст на изображение с обводкой"""
     # Получаем размеры текста
     bbox_top = draw.textbbox((0, 0), top_text, font=font)
