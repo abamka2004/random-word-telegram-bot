@@ -12,7 +12,7 @@ from src.extra.config import get_unsplash_token
 project_root = Path(__file__).resolve().parent.parent.parent
 
 
-async def get_random_image() -> bytes | None:
+async def get_random_image() -> tuple[bytes, dict[str, str]] | tuple[None, None]:
     access_key = get_unsplash_token()
     url = "https://api.unsplash.com/photos/random"
 
@@ -29,22 +29,27 @@ async def get_random_image() -> bytes | None:
                     # Получаем URL обычного размера
                     image_url = data['urls']['regular']
 
+                    # Получаем информацию об авторе
+                    author_info: dict[str, str]
+                    author_info["name"] = data['user']['name']
+                    author_info["url"] = data['user']['links']['html']
+
                     # Загружаем изображение
                     async with session.get(image_url) as img_response:
                         if img_response.status == 200:
                             image_data = await img_response.read()
 
-                            return image_data
+                            return image_data, author_info
                         else:
                             logging.error(f"Ошибка загрузки изображения: {img_response.status}")
-                            return None
+                            return None, None
                 else:
                     logging.error(f"Ошибка API: {response.status}")
-                    return None
+                    return None, None
 
     except Exception as e:
         logging.error(f"Произошла ошибка: {e}")
-        return None
+        return None, None
 
 
 async def setup_font(text: str, image_width: int) -> FreeTypeFont:
