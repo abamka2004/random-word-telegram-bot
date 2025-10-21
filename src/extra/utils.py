@@ -157,7 +157,7 @@ async def get_word_explanation(word: str) -> Optional[str]:
         return None
     except Exception as e:
         logging.error(f"Error getting word explanation: {e}")
-        return None
+        raise e
 
 
 def clean_explanation_text(text: str) -> str:
