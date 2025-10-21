@@ -1,7 +1,6 @@
 import io
 import logging
 from pathlib import Path
-from typing import Optional
 
 import aiohttp
 from PIL import ImageFont, ImageDraw
@@ -13,7 +12,7 @@ from src.extra.config import get_unsplash_token
 project_root = Path(__file__).resolve().parent.parent.parent
 
 
-async def get_random_image() -> Optional[bytes]:
+async def get_random_image() -> tuple[bytes, dict[str, str]] | tuple[None, None]:
     access_key = get_unsplash_token()
     url = "https://api.unsplash.com/photos/random"
 
@@ -30,22 +29,27 @@ async def get_random_image() -> Optional[bytes]:
                     # Получаем URL обычного размера
                     image_url = data['urls']['regular']
 
+                    # Получаем информацию об авторе
+                    author_info: dict[str, str]
+                    author_info["name"] = data['user']['name']
+                    author_info["url"] = data['user']['links']['html']
+
                     # Загружаем изображение
                     async with session.get(image_url) as img_response:
                         if img_response.status == 200:
                             image_data = await img_response.read()
 
-                            return image_data
+                            return image_data, author_info
                         else:
                             logging.error(f"Ошибка загрузки изображения: {img_response.status}")
-                            return None
+                            return None, None
                 else:
                     logging.error(f"Ошибка API: {response.status}")
-                    return None
+                    return None, None
 
     except Exception as e:
         logging.error(f"Произошла ошибка: {e}")
-        return None
+        return None, None
 
 
 async def setup_font(text: str, image_width: int) -> FreeTypeFont:
@@ -64,9 +68,8 @@ async def setup_font(text: str, image_width: int) -> FreeTypeFont:
         return ImageFont.load_default()
 
 
-def add_text_to_image(
-        draw: ImageDraw.ImageDraw, font: FreeTypeFont, top_text: str, bottom_text: str, image_width: int, image_height: int
-):
+def add_text_to_image(draw: ImageDraw.ImageDraw, font: FreeTypeFont,
+                      top_text: str, bottom_text: str, image_width: int, image_height: int):
     """Добавляет текст на изображение с обводкой"""
     # Получаем размеры текста
     bbox_top = draw.textbbox((0, 0), top_text, font=font)
