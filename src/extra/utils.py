@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import Optional
 import logging
 import random
 import asyncio
@@ -39,7 +38,7 @@ async def get_random_emoji() -> str:
     return random.choice(all_emojis)
 
 
-async def do_random_shitpost(image: bytes) -> Optional[bytes]:
+async def do_random_shitpost(image: bytes) -> bytes:
     # Получаем случайные слова
     word1 = await get_random_word()
     word2 = await get_random_word()
@@ -68,7 +67,7 @@ async def do_random_shitpost(image: bytes) -> Optional[bytes]:
 
     except Exception as e:
         logging.error(f"Ошибка при создании щитпоста: {e}")
-        return None
+        raise
 
 
 async def update_subscribers_list() -> list[User]:
@@ -96,7 +95,7 @@ async def send_daily_word(bot: Bot):
             logging.error(f"Ошибка отправки пользователю {user.user_id}: {e}")
 
 
-async def get_word_explanation(word: str) -> Optional[str]:
+async def get_word_explanation(word: str) -> str | None:
     # Очищаем слово от возможных эмодзи и лишних символов
     clean_word = word.split()[0].strip().lower()
 
@@ -153,10 +152,10 @@ async def get_word_explanation(word: str) -> Optional[str]:
 
     except asyncio.TimeoutError:
         logging.error("OpenRouter API timeout")
-        return None
+        raise
     except Exception as e:
         logging.error(f"Error getting word explanation: {e}")
-        raise e
+        raise
 
 
 def clean_explanation_text(text: str) -> str:
