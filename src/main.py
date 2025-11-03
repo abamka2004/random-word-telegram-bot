@@ -30,7 +30,7 @@ async def main() -> None:
     # Запуск планировщика задач
     scheduler = AsyncIOScheduler(timezone="Europe/Moscow")
     scheduler.add_job(send_daily_word, 'cron', (bot, ), hour=9, minute=0)
-    scheduler.add_job(update_subscribers_list, 'interval', hours=0, minutes=1)
+    scheduler.add_job(update_subscribers_list, 'interval', hours=1, minutes=0)
     scheduler.start()
     logging.info("Планировщик задач запущен")
 
