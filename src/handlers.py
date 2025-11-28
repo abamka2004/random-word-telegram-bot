@@ -100,13 +100,15 @@ async def payment(callback: CallbackQuery):
         )
         await callback.answer()
     elif payment_type == "shitpost":
-        await callback.message.answer_invoice(
-            title="Щитпост",
-            description=f"Создать щитпост",
-            payload=callback.data,
-            currency="XTR",
-            prices=[LabeledPrice(label="XTR", amount=3)]
-        )
+        await callback.message.answer("Извините, создать щитпост пока не получится... 😶")
+
+        #await callback.message.answer_invoice(
+        #    title="Щитпост",
+        #    description=f"Создать щитпост",
+        #    payload=callback.data,
+        #    currency="XTR",
+        #    prices=[LabeledPrice(label="XTR", amount=3)]
+        #)
         await callback.answer()
 
 
