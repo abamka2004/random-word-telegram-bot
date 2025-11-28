@@ -2,7 +2,6 @@ from pathlib import Path
 import logging
 import random
 import asyncio
-import re
 import io
 
 import aiohttp
@@ -24,7 +23,7 @@ project_root = Path(__file__).resolve().parent.parent.parent
 words_path = project_root / 'words.txt'
 
 # Однократная загрузка слов в память при запуске
-with open(words_path, 'r') as f:
+with open(words_path, 'r', encoding="windows-1251") as f:
     words = f.read().splitlines()
 # Получаем список всех эмодзи из библиотеки emoji
 all_emojis = list(emoji.EMOJI_DATA.keys())
@@ -103,14 +102,11 @@ async def get_word_explanation(word: str) -> str | None:
     Объясни значение слова "{clean_word}" как в словаре. Соблюдай строго следующие правила:
     1. Ответ должен быть кратким (1-3 предложения)
     2. Объяснение должно быть информативным и точным
-    3. Не используй никакие специальные символы (*, [], ** и т.д.)
-    4. Не добавляй вступлений, заключений или дополнительных комментариев
-    5. Не используй иероглифы или другие не-кириллические символы, кроме стандартной пунктуации
-    6. Формат: "{clean_word} - [объяснение]"
+    3. Не добавляй вступлений, заключений или дополнительных комментариев
+    4. Формат: "{clean_word} - [объяснение]"
 
     Если слово имеет несколько значений, выбери наиболее распространенное.
-    Если слово не существует или является опечаткой, попробуй найти похожее слово или объяснить возможное значение.
-    Избегай фразы "Неизвестное слово" - всегда старайся дать какое-либо объяснение.
+    Если слово не получается определить, попробуй найти похожее слово или объяснить возможное значение.
     """
 
     try:
@@ -122,7 +118,7 @@ async def get_word_explanation(word: str) -> str | None:
                         "Content-Type": "application/json"
                     },
                     json={
-                        "model": "deepseek/deepseek-r1-0528-qwen3-8b:free",
+                        "model": "x-ai/grok-4.1-fast:free",
                         "messages": [
                             {
                                 "role": "system",
@@ -135,17 +131,17 @@ async def get_word_explanation(word: str) -> str | None:
                                 "content": prompt
                             }
                         ],
-                        "temperature": 0.3
+                        "temperature": 0.5
                     },
-                    timeout=aiohttp.ClientTimeout(total=30)  # Таймаут 30 секунд
+                    timeout=aiohttp.ClientTimeout(total=15)
             ) as response:
 
                 if response.status == 200:
                     data = await response.json()
-                    raw_explanation = data['choices'][0]['message']['content'].strip()
+                    explanation = data['choices'][0]['message']['content'].strip()
 
                     # Постобработка ответа
-                    return clean_explanation_text(raw_explanation)
+                    return explanation
                 else:
                     logging.error(f"API error: {response.status}")
                     return None
@@ -156,10 +152,3 @@ async def get_word_explanation(word: str) -> str | None:
     except Exception as e:
         logging.error(f"Error getting word explanation: {e}")
         raise
-
-
-def clean_explanation_text(text: str) -> str:
-    # Удаляем любые не-кириллические символы (кроме пунктуации)
-    text = re.sub(r"[^а-яА-ЯёЁ0-9\s.,:;!?\-]", "", text)
-
-    return text
