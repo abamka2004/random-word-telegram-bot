@@ -79,7 +79,7 @@ async def add_payment(charge_id: str, user_id: int, payload: str,
 async def update_payment_status(charge_id: str, new_status: Literal["success", "refundable", "refunded"]) -> None:
     async with async_session() as session:
         try:
-            await session.update(Payment).where(Payment.charge_id == charge_id).values(status=new_status)
+            await session(update(Payment).where(Payment.charge_id == charge_id).values(status=new_status))
             await session.commit()
         except Exception as e:
             await session.rollback()
