@@ -1,11 +1,10 @@
 from aiogram.filters import CommandStart, Command
-from aiogram.types import Message, CallbackQuery, LabeledPrice, PreCheckoutQuery, BufferedInputFile
+from aiogram.types import Message, CallbackQuery, LabeledPrice, PreCheckoutQuery
 from aiogram import Router, F
 import logging
 
-from src.extra.keyboards import subscribe_kb, unsubscribe_kb, shitpost_kb
-from src.extra.shitpost_utils import get_random_image
-from src.extra.utils import send_word, get_word_explanation, do_random_shitpost
+from src.extra.keyboards import subscribe_kb, unsubscribe_kb
+from src.extra.utils import send_word, explanation_queue
 from src.database import db_requests as db
 
 router = Router()
@@ -21,7 +20,8 @@ async def start(message: Message):
 
     subscription_status = await db.get_subscription_status(user_id)
 
-    await message.answer(f"<b>Добро пожаловать в бота Рандомное слово 👻!</b>\n"
+    bot_name = await message.bot.get_my_name()
+    await message.answer(f"<b>Добро пожаловать в бота {bot_name.name}!</b>\n"
                          f"Здесь вы будете получать рандомное слово каждый день.\n\n"
                          f"Статус рассылки: {'Вы подписаны ✅' if subscription_status is True else 'Вы не подписаны ❌'}",
                          parse_mode="HTML", reply_markup=unsubscribe_kb)
@@ -57,21 +57,10 @@ async def subscribe(callback: CallbackQuery):
 async def word(message: Message):
     await message.answer_invoice(
         title="Объяснить",
-        description=f"Приобрести объяснение слова",
+        description=f"Приобрести ещё одно слово",
         payload="pay_word",
         currency="XTR",
         prices=[LabeledPrice(label="XTR", amount=1)]
-    )
-
-
-@router.message(Command("shitpost"))
-async def shitpost(message: Message):
-    await message.answer_invoice(
-        title="Щитпост",
-        description=f"Создать щитпост",
-        payload="pay_shitpost",
-        currency="XTR",
-        prices=[LabeledPrice(label="XTR", amount=3)]
     )
 
 
@@ -99,17 +88,6 @@ async def payment(callback: CallbackQuery):
             prices=[LabeledPrice(label="XTR", amount=1)]
         )
         await callback.answer()
-    elif payment_type == "shitpost":
-        await callback.message.answer("Извините, создать щитпост пока не получится... 😶")
-
-        #await callback.message.answer_invoice(
-        #    title="Щитпост",
-        #    description=f"Создать щитпост",
-        #    payload=callback.data,
-        #    currency="XTR",
-        #    prices=[LabeledPrice(label="XTR", amount=3)]
-        #)
-        await callback.answer()
 
 
 @router.pre_checkout_query()
@@ -119,73 +97,67 @@ async def pre_checkout_handler(event: PreCheckoutQuery):
 
 @router.message(Command("refund"))
 async def refund(message: Message):
-    try:
-        await message.bot.refund_star_payment(message.from_user.id, message.text.split()[1])
-    except IndexError:
-        await message.answer("ℹ️ Использование команды:\n\n"
-                             "/refund ваш_id_транзакции")
+    args = message.text.split()
+    if len(args) < 2:
+        return await message.answer("ℹ️ Использование: <code>/refund id_транзакции</code>", parse_mode="HTML")
+
+    charge_id = args[1]
+    status = await db.get_payment_status(charge_id)
+
+    if status is None:
+        return await message.answer("❌ Транзакция не найдена.")
+
+    if status == "success":
+        return await message.answer("❌ Этот платёж нельзя вернуть, так как услуга была оказана.")
+
+    if status == "refunded":
+        return await message.answer("ℹ️ Средства за этот платёж уже были возвращены ранее.")
+
+    if status == "refundable":
+        try:
+            await message.bot.refund_star_payment(message.from_user.id, charge_id)
+            await db.update_payment_status(charge_id, "refunded")
+        except Exception as e:
+            logging.error(f"Refund error: {e}")
+            await message.answer("❌ Произошла техническая ошибка при возврате.")
 
 
 ### ACTIONS PERFORMING ###
 
 @router.message(F.successful_payment.invoice_payload == "pay_word")
 async def successful_pay_word(message: Message):
+    charge_id = message.successful_payment.telegram_payment_charge_id
+
+    await db.add_payment(
+        charge_id=charge_id,
+        user_id=message.from_user.id,
+        payload="pay_word",
+        status="success"
+    )
+
     try:
         await send_word(message.bot, message.from_user.id)
     except Exception as e:
         logging.error(f"Error sending the word after payment: {e}")
         await message.answer(
-            "⚠️ Извините, произошла ошибка. Можете вернуть средства с помощью /refund"
+            "⚠️ Извините, произошла ошибка. Можете вернуть средства с помощью команды:\n"
+            f"<code>/refund {charge_id}</code>",
+            parse_mode="HTML"
         )
 
 
 @router.message(F.successful_payment.invoice_payload.startswith("pay_explain_"))
 async def successful_pay_explain(message: Message):
-    info = await message.answer("Пожалуйста, ожидайте...")
+    info = await message.answer("Пожалуйста, ожидайте... 🔎")
+    word = message.successful_payment.invoice_payload.split("_")[2]
+    charge_id = message.successful_payment.telegram_payment_charge_id
 
-    try:
-        word = message.successful_payment.invoice_payload.split("_")[2]
+    await db.add_payment(
+        charge_id=charge_id,
+        user_id=message.from_user.id,
+        payload=message.successful_payment.invoice_payload,
+        status="success"
+    )
 
-        explanation = await get_word_explanation(word)
-        if explanation:
-            await message.answer(
-                f"📖 Объяснение слова <b>{word}</b>:\n\n{explanation}\n\n"
-                f"<tg-spoiler>Ответ сгенерирован ИИ, возможны ошибки.</tg-spoiler>",
-                parse_mode="HTML"
-            )
-            await info.delete()
-
-    except Exception as e:
-        logging.error(f"Error sending the word explanation after payment: {e}")
-        await message.answer(
-            "⚠️ Извините, произошла ошибка. Можете вернуть средства с помощью /refund"
-        )
-
-
-@router.message(F.successful_payment.invoice_payload == "pay_shitpost")
-async def successful_pay_shitpost(message: Message):
-    info = await message.answer("Пожалуйста, ожидайте...")
-
-    try:
-        picture_bytes, author_info = await get_random_image()
-
-        shitpost_img = await do_random_shitpost(picture_bytes)
-
-        if shitpost_img:
-            await message.answer_photo(BufferedInputFile(shitpost_img, "shitpost.jpeg"),
-                                       caption=f"<tg-spoiler>"
-                                               f"автор: {author_info['name']}\n"
-                                               f"{author_info['url']}"
-                                               f"</tg-spoiler>",
-                                       parse_mode="HTML",
-                                       reply_markup=shitpost_kb)
-        else:
-            raise Exception
-
-    except Exception as e:
-        logging.error(f"Error sending the shitpost after payment: {e}")
-        await message.answer(
-            "⚠️ Извините, произошла ошибка. Можете вернуть средства с помощью /refund"
-        )
-    finally:
-        await info.delete()
+    # Помещаем запрос в очередь, хендлер тут же завершается, а воркер обрабатывает задачу в фоне
+    await explanation_queue.put((word, info, charge_id))

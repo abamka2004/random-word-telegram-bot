@@ -6,7 +6,7 @@ import logging
 from src.extra.config import get_bot_token
 from src.database.db_models import init_db
 from src.handlers import router
-from src.extra.utils import send_daily_word, update_subscribers_list
+from src.extra.utils import send_daily_word, get_word_explanation_worker
 
 # Настройка бота
 TOKEN = get_bot_token()
@@ -24,15 +24,14 @@ async def main() -> None:
     # Инициализация БД
     await init_db()
 
-    # Принудительное обновление списка подписчиков
-    await update_subscribers_list()
-
     # Запуск планировщика задач
     scheduler = AsyncIOScheduler(timezone="Europe/Moscow")
-    scheduler.add_job(send_daily_word, 'cron', (bot, ), hour=9, minute=0)
-    scheduler.add_job(update_subscribers_list, 'interval', hours=1, minutes=0)
+    scheduler.add_job(send_daily_word, "cron", (bot,), hour=9, minute=0)
     scheduler.start()
     logging.info("Планировщик задач запущен")
+
+    # Запуск обработчика запросов к Openrouter для объяснения слов
+    asyncio.create_task(get_word_explanation_worker())
 
     # Запуск бота
     dp.include_router(router)

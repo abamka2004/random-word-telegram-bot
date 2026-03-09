@@ -1,7 +1,9 @@
-from sqlalchemy import select, update
-from sqlalchemy.exc import NoResultFound, IntegrityError
+from typing import Literal
 
-from src.database.db_models import async_session, User
+from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
+
+from src.database.db_models import async_session, User, Payment
 
 
 async def add_new_user(user_id: int) -> None:
@@ -59,3 +61,32 @@ async def get_subscribers() -> list[User]:
             .where(User.subscription_status == True)
         )
         return list(result.scalars().all())
+
+
+async def add_payment(charge_id: str, user_id: int, payload: str,
+                      status: Literal["success", "refundable", "refunded"] = "success") -> None:
+    async with async_session() as session:
+        try:
+            session.add(
+                Payment(charge_id=charge_id, user_id=user_id, payload=payload, status=status)
+            )
+            await session.commit()
+        except Exception as e:
+            await session.rollback()
+            raise e
+
+
+async def update_payment_status(charge_id: str, new_status: Literal["success", "refundable", "refunded"]) -> None:
+    async with async_session() as session:
+        try:
+            await session.update(Payment).where(Payment.charge_id == charge_id).values(status=new_status)
+            await session.commit()
+        except Exception as e:
+            await session.rollback()
+            raise e
+
+
+async def get_payment_status(charge_id: str) -> str | None:
+    async with async_session() as session:
+        payment = await session.get(Payment, charge_id)
+        return payment.status if payment else None

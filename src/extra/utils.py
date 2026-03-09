@@ -1,32 +1,40 @@
-from pathlib import Path
+import asyncio
 import logging
 import random
-import asyncio
-import io
+from pathlib import Path
 
-import aiohttp
 import emoji
-from PIL import Image, ImageDraw
 from aiogram import Bot
+from aiogram.exceptions import TelegramForbiddenError
+from aiogram.types import Message
+from openai import AsyncOpenAI
 
-from src.database.db_requests import get_subscribers
 from src.database.db_models import User
+from src.database import db_requests as db
 from src.extra.config import get_openrouter_token
 from src.extra.keyboards import action_kb
-from src.extra.shitpost_utils import setup_font, add_text_to_image, save_image_to_bytes
-
-# Список подписчиков
-subscribers: list[User]
 
 # Определяем пути
 project_root = Path(__file__).resolve().parent.parent.parent
-words_path = project_root / 'words.txt'
+words_path = project_root / "words.txt"
 
-# Однократная загрузка слов в память при запуске
-with open(words_path, 'r', encoding="windows-1251") as f:
-    words = f.read().splitlines()
-# Получаем список всех эмодзи из библиотеки emoji
+# Загрузка слов
+try:
+    with open(words_path, "r", encoding="windows-1251") as f:
+        words = f.read().splitlines()
+except FileNotFoundError:
+    logging.error(f"Файл со словами не найден: {words_path}")
+    words = ["Ошибка"]
+
 all_emojis = list(emoji.EMOJI_DATA.keys())
+
+explanation_queue: asyncio.Queue[tuple[str, Message, str]] = asyncio.Queue()
+
+# Настройка клиента для OpenRouter
+client = AsyncOpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=get_openrouter_token(),
+)
 
 
 async def get_random_word() -> str:
@@ -37,118 +45,96 @@ async def get_random_emoji() -> str:
     return random.choice(all_emojis)
 
 
-async def do_random_shitpost(image: bytes) -> bytes:
-    # Получаем случайные слова
-    word1 = await get_random_word()
-    word2 = await get_random_word()
-    word3 = await get_random_word()
-
-    # Формируем текст для щитпоста
-    top_text = f"{word1.upper()} {word2.upper()}"
-    bottom_text = word3.upper()
-
-    try:
-        # Открываем и подготавливаем изображение
-        img = Image.open(io.BytesIO(image))
-        if img.mode != 'RGB':
-            img = img.convert('RGB')
-
-        draw = ImageDraw.Draw(img)
-
-        # Настраиваем шрифт
-        font = await setup_font(top_text, img.width)
-
-        # Добавляем текст на изображение
-        add_text_to_image(draw, font, top_text, bottom_text, img.width, img.height)
-
-        # Сохраняем результат
-        return save_image_to_bytes(img)
-
-    except Exception as e:
-        logging.error(f"Ошибка при создании щитпоста: {e}")
-        raise
-
-
 async def update_subscribers_list() -> list[User]:
-    global subscribers
-    subscribers = await get_subscribers()
-
-    return subscribers
+    return await db.get_subscribers()
 
 
 async def send_word(bot: Bot, user_id: int):
     word = await get_random_word()
     _emoji = await get_random_emoji()
-    await bot.send_message(user_id, f"{word} {_emoji}",
-                           reply_markup=action_kb(word))
+    try:
+        await bot.send_message(user_id, f"{word} {_emoji}", reply_markup=action_kb(word))
+    except TelegramForbiddenError:
+        # Отписываем юзера, чтобы больше не тратить на него ресурсы
+        await db.unsubscribe(user_id)
 
 
 async def send_daily_word(bot: Bot):
-    global subscribers
-
+    subscribers = await update_subscribers_list()
     for user in subscribers:
         try:
             await send_word(bot, user.user_id)
-            logging.info(f"Сообщение отправлено пользователю {user.user_id}")
         except Exception as e:
             logging.error(f"Ошибка отправки пользователю {user.user_id}: {e}")
 
 
 async def get_word_explanation(word: str) -> str | None:
-    # Очищаем слово от возможных эмодзи и лишних символов
-    clean_word = word.split()[0].strip().lower()
+    system_prompt = (
+        "Ты — словарь. Давай точные и краткие определения слов без лишней информации. "
+        "Используй только кириллицу и стандартную пунктуацию. "
+        "Всегда старайся дать объяснение, даже если слово нестандартное или редкое."
+    )
 
-    prompt = f"""
-    Объясни значение слова "{clean_word}" как в словаре. Соблюдай строго следующие правила:
+    user_prompt = f"""
+    Объясни значение слова "{word}" как в словаре. Соблюдай строго следующие правила:
     1. Ответ должен быть кратким (1-3 предложения)
-    2. Объяснение должно быть информативным и точным
+    2. Объяснение должно быть информативным, понятным и точным
     3. Не добавляй вступлений, заключений или дополнительных комментариев
-    4. Формат: "{clean_word} - [объяснение]"
-
-    Если слово имеет несколько значений, выбери наиболее распространенное.
-    Если слово не получается определить, попробуй найти похожее слово или объяснить возможное значение.
+    4. Формат: "{word} - [объяснение]"
     """
 
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                    url="https://openrouter.ai/api/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {get_openrouter_token()}",
-                        "Content-Type": "application/json"
-                    },
-                    json={
-                        "model": "x-ai/grok-4.1-fast:free",
-                        "messages": [
-                            {
-                                "role": "system",
-                                "content": "Ты — словарь. Давай точные и краткие определения слов без лишней "
-                                           "информации. Используй только кириллицу и стандартную пунктуацию. "
-                                           "Всегда старайся дать объяснение, даже если слово нестандартное или редкое."
-                            },
-                            {
-                                "role": "user",
-                                "content": prompt
-                            }
-                        ],
-                        "temperature": 0.5
-                    },
-                    timeout=aiohttp.ClientTimeout(total=15)
-            ) as response:
+        response = await client.chat.completions.create(
+            model="z-ai/glm-4.5-air:free",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            max_tokens=300,
+            timeout=30.0,
+            extra_body={
+                "include_reasoning": False # Явно выключаем рассуждения
+            }
+        )
 
-                if response.status == 200:
-                    data = await response.json()
-                    explanation = data['choices'][0]['message']['content'].strip()
+        # Проверка на наличие контента перед вызовом .strip()
+        result = response.choices[0].message.content
+        return result.strip() if result else None
 
-                    # Постобработка ответа
-                    return explanation
-                else:
-                    logging.error(f"API error: {response.status}")
-                    return None
-
-    except asyncio.TimeoutError:
-        logging.error("OpenRouter API timeout")
-        raise
     except Exception as e:
-        logging.error(f"Error getting word explanation: {e}")
-        raise
+        logging.error(f"OpenRouter Error: {e}")
+        return None
+
+
+async def get_word_explanation_worker():
+    logging.info("Воркер объяснений запущен")
+
+    while True:
+        # Получаем данные из очереди
+        word, info_msg, charge_id = await explanation_queue.get()
+
+        # Получаем объяснение
+        explanation = await get_word_explanation(word)
+
+        if explanation:
+            await info_msg.answer(
+                f"📖 Объяснение слова <b>{word}</b>:\n\n{explanation}\n\n"
+                f"<tg-spoiler>Ответ сгенерирован ИИ.</tg-spoiler>",
+                parse_mode="HTML",
+            )
+        else:
+            await db.update_payment_status(charge_id, "refundable")
+
+            await info_msg.answer(
+                f"⚠️ Извините, произошла ошибка. Можете вернуть средства с помощью команды:\n"
+                f"<code>/refund {charge_id}</code>",
+                parse_mode="HTML"
+            )
+
+        try:
+            await info_msg.delete()
+        except:
+            pass
+
+        explanation_queue.task_done()
+        await asyncio.sleep(0.5)  # Пауза, чтобы не спамить в API
