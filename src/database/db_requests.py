@@ -58,7 +58,7 @@ async def get_subscribers() -> list[User]:
     async with async_session() as session:
         result = await session.execute(
             select(User)
-            .where(User.subscription_status == True)
+            .where(User.subscription_status)
         )
         return list(result.scalars().all())
 
