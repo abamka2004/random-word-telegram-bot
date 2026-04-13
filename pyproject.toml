@@ -8,6 +8,7 @@ dependencies = [
     "aiosqlite>=0.21.0",
     "apscheduler>=3.11.0",
     "emoji>=2.14.1",
+    "httpx[socks]>=0.28.1",
     "openai>=2.26.0",
     "pillow>=11.3.0",
     "python-dotenv>=1.1.1",
