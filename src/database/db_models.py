@@ -1,10 +1,10 @@
+import os
+import pathlib
 from typing import Literal
 
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncAttrs
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, String, func
+from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import BigInteger, Boolean, String, DateTime, ForeignKey, func
-import pathlib
-import os
 
 # Настройка БД
 root = pathlib.Path(__file__).parent.parent.parent
@@ -36,7 +36,9 @@ class Payment(Base):
     payload: Mapped[str] = mapped_column(String)
 
     # Статусы: 'success' (выполнено), 'refundable' (ошибка, можно вернуть), 'refunded' (уже вернули)
-    status: Mapped[Literal["success", "refundable", "refunded"]] = mapped_column(String, default="success")
+    status: Mapped[Literal["success", "refundable", "refunded"]] = mapped_column(
+        String, default="success"
+    )
 
     created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())
 
