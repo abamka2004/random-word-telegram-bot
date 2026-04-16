@@ -1,12 +1,13 @@
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from aiogram import Bot, Dispatcher
 import asyncio
 import logging
 
-from src.extra.config import get_bot_token
+from aiogram import Bot, Dispatcher
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
 from src.database.db_models import init_db
+from src.extra.config import get_bot_token
+from src.extra.utils import get_word_explanation_worker, send_daily_word
 from src.handlers import router
-from src.extra.utils import send_daily_word, get_word_explanation_worker
 
 # Настройка бота
 TOKEN = get_bot_token()
@@ -15,9 +16,11 @@ bot = Bot(TOKEN)
 dp = Dispatcher()
 
 # Настройка логирования
-logging.basicConfig(level=logging.INFO,
-                    format="%(asctime)s - [%(levelname)s] > %(message)s",
-                    datefmt="%Y-%m-%d %H:%M:%S")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - [%(levelname)s] > %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
 
 async def main() -> None:
@@ -38,5 +41,5 @@ async def main() -> None:
     await dp.start_polling(bot)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     asyncio.run(main())

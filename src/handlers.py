@@ -1,16 +1,18 @@
-from aiogram.filters import CommandStart, Command
-from aiogram.types import Message, CallbackQuery, LabeledPrice, PreCheckoutQuery
-from aiogram import Router, F
 import logging
 
-from src.extra.keyboards import subscribe_kb, unsubscribe_kb
-from src.extra.utils import send_word, explanation_queue
+from aiogram import F, Router
+from aiogram.filters import Command, CommandStart
+from aiogram.types import CallbackQuery, LabeledPrice, Message, PreCheckoutQuery
+
 from src.database import db_requests as db
+from src.extra.keyboards import subscribe_kb, unsubscribe_kb
+from src.extra.utils import explanation_queue, send_word
 
 router = Router()
 
 
 ### START ###
+
 
 @router.message(CommandStart())
 async def start(message: Message):
@@ -21,22 +23,29 @@ async def start(message: Message):
     subscription_status = await db.get_subscription_status(user_id)
 
     bot_name = await message.bot.get_my_name()
-    await message.answer(f"<b>Добро пожаловать в бота {bot_name.name}!</b>\n"
-                         f"Здесь вы будете получать рандомное слово каждый день.\n\n"
-                         f"Статус рассылки: {'Вы подписаны ✅' if subscription_status is True else 'Вы не подписаны ❌'}",
-                         parse_mode="HTML", reply_markup=unsubscribe_kb)
+    await message.answer(
+        f"<b>Добро пожаловать в бота {bot_name.name}!</b>\n"
+        f"Здесь вы будете получать рандомное слово каждый день.\n\n"
+        f"Статус рассылки: {'Вы подписаны ✅' if subscription_status is True else 'Вы не подписаны ❌'}",
+        parse_mode="HTML",
+        reply_markup=unsubscribe_kb,
+    )
 
 
 ### SUBSCRIPTIONS ###
+
 
 @router.callback_query(F.data == "unsubscribe")
 async def unsubscribe(callback: CallbackQuery):
     user_id: int = callback.from_user.id
 
     await db.unsubscribe(user_id)
-    await callback.message.answer("<b>Вы отписались от рассылки.</b>\n\n"
-                                  "Нажмите кнопку ниже или напишите /start, чтобы подписаться на рассылку 👇",
-                                  parse_mode="HTML", reply_markup=subscribe_kb)
+    await callback.message.answer(
+        "<b>Вы отписались от рассылки.</b>\n\n"
+        "Нажмите кнопку ниже или напишите /start, чтобы подписаться на рассылку 👇",
+        parse_mode="HTML",
+        reply_markup=subscribe_kb,
+    )
     await callback.answer()
 
 
@@ -45,26 +54,31 @@ async def subscribe(callback: CallbackQuery):
     user_id: int = callback.from_user.id
 
     await db.subscribe(user_id)
-    await callback.message.answer("<b>Вы подписались на рассылку.</b>\n\n"
-                                  "Нажмите кнопку ниже, чтобы отписаться от рассылки 👇",
-                                  parse_mode="HTML", reply_markup=unsubscribe_kb)
+    await callback.message.answer(
+        "<b>Вы подписались на рассылку.</b>\n\n"
+        "Нажмите кнопку ниже, чтобы отписаться от рассылки 👇",
+        parse_mode="HTML",
+        reply_markup=unsubscribe_kb,
+    )
     await callback.answer()
 
 
 ### ACTIONS ###
 
+
 @router.message(Command("word"))
 async def word(message: Message):
     await message.answer_invoice(
         title="Объяснить",
-        description=f"Приобрести ещё одно слово",
+        description="Приобрести ещё одно слово",
         payload="pay_word",
         currency="XTR",
-        prices=[LabeledPrice(label="XTR", amount=1)]
+        prices=[LabeledPrice(label="XTR", amount=1)],
     )
 
 
 ### PAYMENTS ###
+
 
 @router.callback_query(F.data.startswith("pay_"))
 async def payment(callback: CallbackQuery):
@@ -73,19 +87,19 @@ async def payment(callback: CallbackQuery):
     if payment_type == "explain":
         await callback.message.answer_invoice(
             title="Объяснить",
-            description=f"Приобрести объяснение слова",
+            description="Приобрести объяснение слова",
             payload=callback.data,
             currency="XTR",
-            prices=[LabeledPrice(label="XTR", amount=1)]
+            prices=[LabeledPrice(label="XTR", amount=1)],
         )
         await callback.answer()
     elif payment_type == "word":
         await callback.message.answer_invoice(
             title="Ещё слово",
-            description=f"Приобрести ещё одно слово",
+            description="Приобрести ещё одно слово",
             payload=callback.data,
             currency="XTR",
-            prices=[LabeledPrice(label="XTR", amount=1)]
+            prices=[LabeledPrice(label="XTR", amount=1)],
         )
         await callback.answer()
 
@@ -99,7 +113,9 @@ async def pre_checkout_handler(event: PreCheckoutQuery):
 async def refund(message: Message):
     args = message.text.split()
     if len(args) < 2:
-        return await message.answer("ℹ️ Использование: <code>/refund id_транзакции</code>", parse_mode="HTML")
+        return await message.answer(
+            "ℹ️ Использование: <code>/refund id_транзакции</code>", parse_mode="HTML"
+        )
 
     charge_id = args[1]
     status = await db.get_payment_status(charge_id)
@@ -108,10 +124,14 @@ async def refund(message: Message):
         return await message.answer("❌ Транзакция не найдена.")
 
     if status == "success":
-        return await message.answer("❌ Этот платёж нельзя вернуть, так как услуга была оказана.")
+        return await message.answer(
+            "❌ Этот платёж нельзя вернуть, так как услуга была оказана."
+        )
 
     if status == "refunded":
-        return await message.answer("ℹ️ Средства за этот платёж уже были возвращены ранее.")
+        return await message.answer(
+            "ℹ️ Средства за этот платёж уже были возвращены ранее."
+        )
 
     if status == "refundable":
         try:
@@ -124,6 +144,7 @@ async def refund(message: Message):
 
 ### ACTIONS PERFORMING ###
 
+
 @router.message(F.successful_payment.invoice_payload == "pay_word")
 async def successful_pay_word(message: Message):
     charge_id = message.successful_payment.telegram_payment_charge_id
@@ -132,7 +153,7 @@ async def successful_pay_word(message: Message):
         charge_id=charge_id,
         user_id=message.from_user.id,
         payload="pay_word",
-        status="success"
+        status="success",
     )
 
     try:
@@ -142,7 +163,7 @@ async def successful_pay_word(message: Message):
         await message.answer(
             "⚠️ Извините, произошла ошибка. Можете вернуть средства с помощью команды:\n"
             f"<code>/refund {charge_id}</code>",
-            parse_mode="HTML"
+            parse_mode="HTML",
         )
 
 
@@ -156,7 +177,7 @@ async def successful_pay_explain(message: Message):
         charge_id=charge_id,
         user_id=message.from_user.id,
         payload=message.successful_payment.invoice_payload,
-        status="success"
+        status="success",
     )
 
     # Помещаем запрос в очередь, хендлер тут же завершается, а воркер обрабатывает задачу в фоне

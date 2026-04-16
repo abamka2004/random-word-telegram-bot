@@ -3,15 +3,13 @@ from typing import Literal
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 
-from src.database.db_models import async_session, User, Payment
+from src.database.db_models import Payment, User, async_session
 
 
 async def add_new_user(user_id: int) -> None:
     async with async_session() as session:
         try:
-            session.add(
-                User(user_id=user_id)
-            )
+            session.add(User(user_id=user_id))
             await session.commit()
         except IntegrityError:
             pass
@@ -56,19 +54,22 @@ async def unsubscribe(user_id: int) -> None:
 
 async def get_subscribers() -> list[User]:
     async with async_session() as session:
-        result = await session.execute(
-            select(User)
-            .where(User.subscription_status)
-        )
+        result = await session.execute(select(User).where(User.subscription_status))
         return list(result.scalars().all())
 
 
-async def add_payment(charge_id: str, user_id: int, payload: str,
-                      status: Literal["success", "refundable", "refunded"] = "success") -> None:
+async def add_payment(
+    charge_id: str,
+    user_id: int,
+    payload: str,
+    status: Literal["success", "refundable", "refunded"] = "success",
+) -> None:
     async with async_session() as session:
         try:
             session.add(
-                Payment(charge_id=charge_id, user_id=user_id, payload=payload, status=status)
+                Payment(
+                    charge_id=charge_id, user_id=user_id, payload=payload, status=status
+                )
             )
             await session.commit()
         except Exception as e:
@@ -76,10 +77,16 @@ async def add_payment(charge_id: str, user_id: int, payload: str,
             raise e
 
 
-async def update_payment_status(charge_id: str, new_status: Literal["success", "refundable", "refunded"]) -> None:
+async def update_payment_status(
+    charge_id: str, new_status: Literal["success", "refundable", "refunded"]
+) -> None:
     async with async_session() as session:
         try:
-            await session(update(Payment).where(Payment.charge_id == charge_id).values(status=new_status))
+            await session(
+                update(Payment)
+                .where(Payment.charge_id == charge_id)
+                .values(status=new_status)
+            )
             await session.commit()
         except Exception as e:
             await session.rollback()
