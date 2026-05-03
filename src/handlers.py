@@ -5,8 +5,9 @@ from aiogram.filters import Command, CommandStart
 from aiogram.types import CallbackQuery, LabeledPrice, Message, PreCheckoutQuery
 
 from src.database import db_requests as db
+from src.extra.explanation_utils import explanation_queue
 from src.extra.keyboards import subscribe_kb, unsubscribe_kb
-from src.extra.utils import explanation_queue, send_word
+from src.extra.word_utils import send_word
 
 router = Router()
 

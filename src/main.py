@@ -6,7 +6,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from src.database.db_models import init_db
 from src.extra.config import get_bot_token
-from src.extra.utils import get_word_explanation_worker, send_daily_word
+from src.extra.explanation_utils import get_word_explanation_worker
+from src.extra.word_utils import send_daily_word
 from src.handlers import router
 
 # Настройка бота
