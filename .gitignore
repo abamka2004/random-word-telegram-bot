@@ -7,7 +7,7 @@
 
 # Database
 **/*.db
-**/*.sqlite3
+**/*.db-*
 
 # IDE
 .idea/
