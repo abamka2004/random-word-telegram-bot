@@ -13,14 +13,14 @@ from src.extra.word_utils import get_random_word
 
 project_root = Path(__file__).resolve().parent.parent.parent
 
-# очередь для хранения ссылок на картинки
+# Очередь для хранения ссылок на картинки
 unsplash_queue: asyncio.Queue[dict] = asyncio.Queue()
 
 
 async def _fetch_unsplash_batch(count: int = 30) -> list[dict] | None:
     """Функция делает 1 запрос к API и получает данные сразу о нескольких фото"""
     access_key = get_unsplash_token()
-    # добавляем параметр count для получения массива фото
+    # Добавляем параметр count для получения массива фото
     url = f"https://api.unsplash.com/photos/random?count={count}"
     headers = {"Authorization": f"Client-ID {access_key}"}
 
@@ -58,7 +58,7 @@ async def get_unsplash_worker():
     logging.info("Воркер Unsplash запущен")
 
     while True:
-        # если в очереди осталось меньше 5 ссылок, запрашиваем новую партию
+        # Если в очереди осталось меньше 5 ссылок, запрашиваем новую партию
         if unsplash_queue.qsize() < 5:
             logging.info("Пополнение очереди картинок Unsplash...")
             batch = await _fetch_unsplash_batch(count=30)
@@ -70,7 +70,7 @@ async def get_unsplash_worker():
                     f"Добавлено {len(batch)} фото. Текущий размер очереди: {unsplash_queue.qsize()}"
                 )
             else:
-                # если произошла ошибка (например, исчерпан лимит 50/час),
+                # Если произошла ошибка (например, исчерпан лимит 50/час),
                 # засыпаем на 5 минут перед следующей попыткой, чтобы не спамить API
                 logging.warning("Ожидание 5 минут перед следующим запросом к Unsplash")
                 await asyncio.sleep(300)
@@ -82,7 +82,7 @@ async def get_unsplash_worker():
 async def get_random_image() -> tuple[bytes, dict[str, str]] | tuple[None, None]:
     """Скачивает картинку по заранее подготовленной ссылке из очереди"""
     try:
-        # пытаемся получить ссылку из очереди (таймаут 15 сек на случай если очередь пуста и воркер ее пополняет)
+        # Пытаемся получить ссылку из очереди (таймаут 15 сек на случай если очередь пуста и воркер ее пополняет)
         item = await asyncio.wait_for(unsplash_queue.get(), timeout=15.0)
     except asyncio.TimeoutError:
         logging.error("Таймаут: Очередь Unsplash пуста")
@@ -92,7 +92,7 @@ async def get_random_image() -> tuple[bytes, dict[str, str]] | tuple[None, None]
     author_info = item["author_info"]
 
     try:
-        # скачиваем саму картинку напрямую с CDN (Не тратит лимит API Unsplash)
+        # Cкачиваем саму картинку напрямую с CDN (Не тратит лимит API Unsplash)
         async with aiohttp.ClientSession() as session:
             async with session.get(image_url) as img_response:
                 if img_response.status == 200:
