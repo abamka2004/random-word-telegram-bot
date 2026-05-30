@@ -2,7 +2,7 @@ import os
 import pathlib
 from typing import Literal
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, String, func
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, String, func, text
 from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -45,4 +45,6 @@ class Payment(Base):
 
 async def init_db() -> None:
     async with engine.begin() as conn:
+        # Включаем WAL режим для предотвращения блокировок базы данных при параллельной записи
+        await conn.execute(text("PRAGMA journal_mode=WAL;"))
         await conn.run_sync(Base.metadata.create_all)
