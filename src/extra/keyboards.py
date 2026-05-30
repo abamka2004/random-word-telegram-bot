@@ -14,6 +14,17 @@ subscribe_kb = InlineKeyboardMarkup(
 )
 
 
+shitpost_kb = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [
+            InlineKeyboardButton(
+                text="Ещё щитпост 3⭐️", callback_data="pay_shitpost", pay=True
+            )
+        ]
+    ]
+)
+
+
 def action_kb(word: str) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder(
         [
