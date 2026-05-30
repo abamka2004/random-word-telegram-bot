@@ -36,7 +36,7 @@ async def start(message: Message):
         f"Здесь вы будете получать рандомное слово каждый день.\n\n"
         f"Статус рассылки: {'Вы подписаны ✅' if subscription_status is True else 'Вы не подписаны ❌'}",
         parse_mode="HTML",
-        reply_markup=unsubscribe_kb,
+        reply_markup=unsubscribe_kb if subscription_status else subscribe_kb,
     )
 
 
