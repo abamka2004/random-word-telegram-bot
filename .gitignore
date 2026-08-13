@@ -13,3 +13,6 @@
 .idea/
 .vscode/
 .ropeproject/
+
+# Tools
+.ruff_cache/
