@@ -33,7 +33,7 @@ async def get_word_explanation(word: str) -> str | None:
 
     try:
         response = await client.chat.completions.create(
-            model="z-ai/glm-4.5-air:free",
+            model="openrouter/free",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
