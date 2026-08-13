@@ -26,6 +26,13 @@ venvPath = "."
 venv = ".venv"
 typeCheckingMode = "recommended"
 pythonVersion = "3.13"
+reportUnusedCallResult = false
+reportImplicitStringConcatenation = false
+reportMissingTypeStubs = false
+reportUnknownMemberType = false
+reportUnknownVariableType = false
+reportUnknownParameterType = false
+reportAny = false
 
 [tool.ruff]
 target-version = "py313"

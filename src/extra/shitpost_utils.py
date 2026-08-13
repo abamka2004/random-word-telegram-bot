@@ -2,10 +2,10 @@ import asyncio
 import io
 import logging
 from pathlib import Path
+from typing import TypedDict, cast
 
 import aiohttp
 from PIL import Image, ImageDraw, ImageFont
-from PIL.ImageFile import ImageFile
 from PIL.ImageFont import FreeTypeFont
 
 from src.extra.config import get_unsplash_token
@@ -13,11 +13,17 @@ from src.extra.word_utils import get_random_word
 
 project_root = Path(__file__).resolve().parent.parent.parent
 
+
+class UnsplashImage(TypedDict):
+    url: str
+    author_info: dict[str, str]
+
+
 # Очередь для хранения ссылок на картинки
-unsplash_queue: asyncio.Queue[dict] = asyncio.Queue()
+unsplash_queue: asyncio.Queue[UnsplashImage] = asyncio.Queue()
 
 
-async def _fetch_unsplash_batch(count: int = 30) -> list[dict] | None:
+async def _fetch_unsplash_batch(count: int = 30) -> list[UnsplashImage] | None:
     """Функция делает 1 запрос к API и получает данные сразу о нескольких фото"""
     access_key = get_unsplash_token()
     # Добавляем параметр count для получения массива фото
@@ -25,29 +31,32 @@ async def _fetch_unsplash_batch(count: int = 30) -> list[dict] | None:
     headers = {"Authorization": f"Client-ID {access_key}"}
 
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers) as response:
-                if response.status == 200:
-                    data = await response.json()
+        async with (
+            aiohttp.ClientSession() as session,
+            session.get(url, headers=headers) as response,
+        ):
+            if response.status == 200:
+                data = await response.json()
 
-                    batch = []
-                    for item in data:
-                        batch.append(
-                            {
-                                "url": item["urls"]["regular"],
-                                "author_info": {
-                                    "author_name": item["user"]["name"],
-                                    "author_url": item["user"]["links"]["html"],
-                                },
-                            }
-                        )
-                    return batch
-                elif response.status in (403, 429):
-                    logging.warning("Unsplash: Превышен лимит запросов API!")
-                    return None
-                else:
-                    logging.error(f"Ошибка API Unsplash: {response.status}")
-                    return None
+                return cast(
+                    list[UnsplashImage],
+                    [
+                        {
+                            "url": item["urls"]["regular"],
+                            "author_info": {
+                                "author_name": item["user"]["name"],
+                                "author_url": item["user"]["links"]["html"],
+                            },
+                        }
+                        for item in data
+                    ],
+                )
+            elif response.status in (403, 429):
+                logging.warning("Unsplash: Превышен лимит запросов API!")
+                return None
+            else:
+                logging.error(f"Ошибка API Unsplash: {response.status}")
+                return None
     except Exception as e:
         logging.error(f"Ошибка при запросе к Unsplash: {e}")
         return None
@@ -67,7 +76,7 @@ async def get_unsplash_worker():
                 for item in batch:
                     await unsplash_queue.put(item)
                 logging.info(
-                    f"Добавлено {len(batch)} фото. Текущий размер очереди: {unsplash_queue.qsize()}"
+                    f"Добавлено {len(batch)} фото. В очереди: {unsplash_queue.qsize()}"
                 )
             else:
                 # Если произошла ошибка (например, исчерпан лимит 50/час),
@@ -82,9 +91,10 @@ async def get_unsplash_worker():
 async def get_random_image() -> tuple[bytes, dict[str, str]] | tuple[None, None]:
     """Скачивает картинку по заранее подготовленной ссылке из очереди"""
     try:
-        # Пытаемся получить ссылку из очереди (таймаут 15 сек на случай если очередь пуста и воркер ее пополняет)
+        # Пытаемся получить ссылку из очереди
+        # (таймаут 15 сек на случай если очередь пуста и воркер ее пополняет)
         item = await asyncio.wait_for(unsplash_queue.get(), timeout=15.0)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logging.error("Таймаут: Очередь Unsplash пуста")
         return None, None
 
@@ -93,25 +103,27 @@ async def get_random_image() -> tuple[bytes, dict[str, str]] | tuple[None, None]
 
     try:
         # Cкачиваем саму картинку напрямую с CDN (Не тратит лимит API Unsplash)
-        async with aiohttp.ClientSession() as session:
-            async with session.get(image_url) as img_response:
-                if img_response.status == 200:
-                    image_data = await img_response.read()
-                    unsplash_queue.task_done()
-                    return image_data, author_info
-                else:
-                    logging.error(
-                        f"Ошибка загрузки изображения с Unsplash: {img_response.status}"
-                    )
-                    unsplash_queue.task_done()
-                    return None, None
+        async with (
+            aiohttp.ClientSession() as session,
+            session.get(image_url) as img_response,
+        ):
+            if img_response.status == 200:
+                image_data = await img_response.read()
+                unsplash_queue.task_done()
+                return image_data, author_info
+            else:
+                logging.error(
+                    f"Ошибка загрузки изображения с Unsplash: {img_response.status}"
+                )
+                unsplash_queue.task_done()
+                return None, None
     except Exception as e:
         logging.error(f"Ошибка при скачивании изображения: {e}")
         unsplash_queue.task_done()
         return None, None
 
 
-async def setup_font(text: str, image_width: int) -> FreeTypeFont:
+async def setup_font(text: str, image_width: int) -> FreeTypeFont | ImageFont.ImageFont:
     """Настраивает шрифт подходящего размера"""
     font_path = project_root / "assets" / "fonts" / "Impact.ttf"
 
@@ -122,14 +134,14 @@ async def setup_font(text: str, image_width: int) -> FreeTypeFont:
         font_size = max(30, min(font_size, 200))  # Минимум 30px, максимум 200px
 
         return ImageFont.truetype(str(font_path), size=font_size)
-    except (IOError, AttributeError):
+    except (OSError, AttributeError):
         logging.warning("Шрифт не найден, используется стандартный")
         return ImageFont.load_default()
 
 
 def add_text_to_image(
     draw: ImageDraw.ImageDraw,
-    font: FreeTypeFont,
+    font: FreeTypeFont | ImageFont.ImageFont,
     top_text: str,
     bottom_text: str,
     image_width: int,
@@ -170,7 +182,7 @@ def add_text_to_image(
     draw.text((x_bottom, y_bottom), bottom_text, font=font, fill="white")
 
 
-def save_image_to_bytes(img: ImageFile) -> bytes:
+def save_image_to_bytes(img: Image.Image) -> bytes:
     output = io.BytesIO()
     img.save(output, format="JPEG", quality=90)
     return output.getvalue()

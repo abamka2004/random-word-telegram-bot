@@ -20,7 +20,7 @@ class Base(DeclarativeBase, AsyncAttrs):
 
 
 class User(Base):
-    __tablename__ = "users"
+    __tablename__: str = "users"
 
     user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     subscription_status: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -28,14 +28,15 @@ class User(Base):
 
 
 class Payment(Base):
-    __tablename__ = "payments"
+    __tablename__: str = "payments"
 
     charge_id: Mapped[str] = mapped_column(String, primary_key=True)
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.user_id"))
 
     payload: Mapped[str] = mapped_column(String)
 
-    # Статусы: 'success' (выполнено), 'refundable' (ошибка, можно вернуть), 'refunded' (уже вернули)
+    # Статусы:
+    # 'success' (выполнено), 'refundable' (можно вернуть), 'refunded' (возвращён)
     status: Mapped[Literal["success", "refundable", "refunded"]] = mapped_column(
         String, default="success"
     )
@@ -45,6 +46,6 @@ class Payment(Base):
 
 async def init_db() -> None:
     async with engine.begin() as conn:
-        # Включаем WAL режим для предотвращения блокировок базы данных при параллельной записи
+        # WAL режим предотвращает блокировки БД при параллельной записи
         await conn.execute(text("PRAGMA journal_mode=WAL;"))
         await conn.run_sync(Base.metadata.create_all)

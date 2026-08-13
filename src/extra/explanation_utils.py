@@ -74,7 +74,8 @@ async def get_word_explanation_worker():
             await db.update_payment_status(charge_id, "refundable")
 
             await info_msg.answer(
-                f"⚠️ Извините, произошла ошибка. Можете вернуть средства с помощью команды:\n"
+                f"⚠️ Извините, произошла ошибка. "
+                "Можете вернуть средства с помощью команды:\n"
                 f"<code>/refund {charge_id}</code>",
                 parse_mode="HTML",
             )
