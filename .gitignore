@@ -7,9 +7,12 @@
 
 # Database
 **/*.db
-**/*.sqlite3
+**/*.db-*
 
 # IDE
 .idea/
 .vscode/
 .ropeproject/
+
+# Tools
+.ruff_cache/

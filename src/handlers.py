@@ -2,11 +2,18 @@ import logging
 
 from aiogram import F, Router
 from aiogram.filters import Command, CommandStart
-from aiogram.types import CallbackQuery, LabeledPrice, Message, PreCheckoutQuery
+from aiogram.types import (
+    BufferedInputFile,
+    CallbackQuery,
+    LabeledPrice,
+    Message,
+    PreCheckoutQuery,
+)
 
 from src.database import db_requests as db
 from src.extra.explanation_utils import explanation_queue
-from src.extra.keyboards import subscribe_kb, unsubscribe_kb
+from src.extra.keyboards import shitpost_kb, subscribe_kb, unsubscribe_kb
+from src.extra.shitpost_utils import create_random_shitpost, get_random_image
 from src.extra.word_utils import send_word
 
 router = Router()
@@ -17,6 +24,9 @@ router = Router()
 
 @router.message(CommandStart())
 async def start(message: Message):
+    assert message.from_user is not None
+    assert message.bot is not None
+
     user_id: int = message.from_user.id
 
     await db.add_new_user(user_id)
@@ -26,10 +36,11 @@ async def start(message: Message):
     bot_name = await message.bot.get_my_name()
     await message.answer(
         f"<b>Добро пожаловать в бота {bot_name.name}!</b>\n"
-        f"Здесь вы будете получать рандомное слово каждый день.\n\n"
-        f"Статус рассылки: {'Вы подписаны ✅' if subscription_status is True else 'Вы не подписаны ❌'}",
+        "Здесь вы будете получать рандомное слово каждый день.\n\n"
+        "Статус рассылки: "
+        f"{'Вы подписаны ✅' if subscription_status is True else 'Вы не подписаны ❌'}",
         parse_mode="HTML",
-        reply_markup=unsubscribe_kb,
+        reply_markup=unsubscribe_kb if subscription_status else subscribe_kb,
     )
 
 
@@ -38,6 +49,8 @@ async def start(message: Message):
 
 @router.callback_query(F.data == "unsubscribe")
 async def unsubscribe(callback: CallbackQuery):
+    assert callback.message is not None
+
     user_id: int = callback.from_user.id
 
     await db.unsubscribe(user_id)
@@ -52,6 +65,8 @@ async def unsubscribe(callback: CallbackQuery):
 
 @router.callback_query(F.data == "subscribe")
 async def subscribe(callback: CallbackQuery):
+    assert callback.message is not None
+
     user_id: int = callback.from_user.id
 
     await db.subscribe(user_id)
@@ -78,11 +93,25 @@ async def word(message: Message):
     )
 
 
+@router.message(Command("shitpost"))
+async def shitpost_command(message: Message):
+    await message.answer_invoice(
+        title="Щитпост",
+        description="Создать щитпост",
+        payload="pay_shitpost",
+        currency="XTR",
+        prices=[LabeledPrice(label="XTR", amount=3)],
+    )
+
+
 ### PAYMENTS ###
 
 
 @router.callback_query(F.data.startswith("pay_"))
 async def payment(callback: CallbackQuery):
+    assert callback.data is not None
+    assert callback.message is not None
+
     payment_type = callback.data.split("_")[1]
 
     if payment_type == "explain":
@@ -103,6 +132,15 @@ async def payment(callback: CallbackQuery):
             prices=[LabeledPrice(label="XTR", amount=1)],
         )
         await callback.answer()
+    elif payment_type == "shitpost":
+        await callback.message.answer_invoice(
+            title="Щитпост",
+            description="Создать щитпост",
+            payload=callback.data,
+            currency="XTR",
+            prices=[LabeledPrice(label="XTR", amount=3)],
+        )
+        await callback.answer()
 
 
 @router.pre_checkout_query()
@@ -112,6 +150,7 @@ async def pre_checkout_handler(event: PreCheckoutQuery):
 
 @router.message(Command("refund"))
 async def refund(message: Message):
+    assert message.text is not None
     args = message.text.split()
     if len(args) < 2:
         return await message.answer(
@@ -135,6 +174,8 @@ async def refund(message: Message):
         )
 
     if status == "refundable":
+        assert message.bot is not None
+        assert message.from_user is not None
         try:
             await message.bot.refund_star_payment(message.from_user.id, charge_id)
             await db.update_payment_status(charge_id, "refunded")
@@ -148,6 +189,10 @@ async def refund(message: Message):
 
 @router.message(F.successful_payment.invoice_payload == "pay_word")
 async def successful_pay_word(message: Message):
+    assert message.successful_payment is not None
+    assert message.from_user is not None
+    assert message.bot is not None
+
     charge_id = message.successful_payment.telegram_payment_charge_id
 
     await db.add_payment(
@@ -168,8 +213,65 @@ async def successful_pay_word(message: Message):
         )
 
 
+@router.message(F.successful_payment.invoice_payload == "pay_shitpost")
+async def successful_pay_shitpost(message: Message):
+    assert message.successful_payment is not None
+    assert message.from_user is not None
+
+    charge_id = message.successful_payment.telegram_payment_charge_id
+    user_id = message.from_user.id
+
+    # Ставим refundable, пока не убедимся, что щитпост отправлен
+    await db.add_payment(
+        charge_id=charge_id,
+        user_id=user_id,
+        payload="pay_shitpost",
+        status="refundable",
+    )
+
+    try:
+        await message.answer("🎨 Генерирую щитпост... Это может занять пару секунд.")
+
+        image_bytes, author_info = await get_random_image()
+
+        if image_bytes is None or author_info is None:
+            raise ValueError("Не удалось получить изображение из очереди Unsplash")
+
+        shitpost_img = await create_random_shitpost(image_bytes)
+
+        # Подпись с кредитами автору (требование Unsplash)
+        caption = ""
+        if author_info.get("author_url") and author_info.get("author_name"):
+            caption = (
+                "📸 Автор на Unsplash.com: "
+                f"<a href='{author_info['author_url']}'>"
+                f"{author_info['author_name']}</a>"
+            )
+
+        await message.answer_photo(
+            BufferedInputFile(shitpost_img, "shitpost.jpeg"),
+            caption=f"<tg-spoiler>{caption}</tg-spoiler>",
+            parse_mode="HTML",
+            reply_markup=shitpost_kb,
+        )
+
+        await db.update_payment_status(charge_id, "success")
+
+    except Exception as e:
+        logging.error(f"Error creating shitpost after payment: {e}")
+        await message.answer(
+            "⚠️ Извините, произошла ошибка при создании щитпоста. "
+            "Можете вернуть средства с помощью команды:\n"
+            f"<code>/refund {charge_id}</code>",
+            parse_mode="HTML",
+        )
+
+
 @router.message(F.successful_payment.invoice_payload.startswith("pay_explain_"))
 async def successful_pay_explain(message: Message):
+    assert message.successful_payment is not None
+    assert message.from_user is not None
+
     info = await message.answer("Пожалуйста, ожидайте... 🔎")
     word = message.successful_payment.invoice_payload.split("_")[2]
     charge_id = message.successful_payment.telegram_payment_charge_id
@@ -181,5 +283,6 @@ async def successful_pay_explain(message: Message):
         status="success",
     )
 
-    # Помещаем запрос в очередь, хендлер тут же завершается, а воркер обрабатывает задачу в фоне
+    # Помещаем запрос в очередь, хендлер тут же завершается,
+    # а воркер обрабатывает задачу в фоне
     await explanation_queue.put((word, info, charge_id))

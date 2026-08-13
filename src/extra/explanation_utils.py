@@ -33,7 +33,7 @@ async def get_word_explanation(word: str) -> str | None:
 
     try:
         response = await client.chat.completions.create(
-            model="z-ai/glm-4.5-air:free",
+            model="openrouter/free",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
@@ -74,7 +74,8 @@ async def get_word_explanation_worker():
             await db.update_payment_status(charge_id, "refundable")
 
             await info_msg.answer(
-                f"⚠️ Извините, произошла ошибка. Можете вернуть средства с помощью команды:\n"
+                f"⚠️ Извините, произошла ошибка. "
+                "Можете вернуть средства с помощью команды:\n"
                 f"<code>/refund {charge_id}</code>",
                 parse_mode="HTML",
             )

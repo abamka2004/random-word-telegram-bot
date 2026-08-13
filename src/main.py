@@ -7,6 +7,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from src.database.db_models import init_db
 from src.extra.config import get_bot_token
 from src.extra.explanation_utils import get_word_explanation_worker
+from src.extra.shitpost_utils import get_unsplash_worker
 from src.extra.word_utils import send_daily_word
 from src.handlers import router
 
@@ -34,8 +35,13 @@ async def main() -> None:
     scheduler.start()
     logging.info("Планировщик задач запущен")
 
-    # Запуск обработчика запросов к Openrouter для объяснения слов
-    asyncio.create_task(get_word_explanation_worker())
+    _ = [
+        # Запуск обработчика запросов к Openrouter для объяснения слов
+        asyncio.create_task(get_word_explanation_worker()),
+        # Запуск обработчика запросов к Unsplash для получения рандомных изображений
+        # (батчами по 30 шт)
+        asyncio.create_task(get_unsplash_worker()),
+    ]
 
     # Запуск бота
     dp.include_router(router)

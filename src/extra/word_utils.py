@@ -16,7 +16,7 @@ words_path = project_root / "words.txt"
 
 # Загрузка слов
 try:
-    with open(words_path, "r", encoding="windows-1251") as f:
+    with open(words_path, encoding="windows-1251") as f:
         words = f.read().splitlines()
 except FileNotFoundError:
     logging.error(f"Файл со словами не найден: {words_path}")

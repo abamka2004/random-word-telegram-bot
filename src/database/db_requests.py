@@ -82,7 +82,7 @@ async def update_payment_status(
 ) -> None:
     async with async_session() as session:
         try:
-            await session(
+            await session.execute(
                 update(Payment)
                 .where(Payment.charge_id == charge_id)
                 .values(status=new_status)
