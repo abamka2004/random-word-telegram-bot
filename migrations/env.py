@@ -10,7 +10,7 @@ config = context.config
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
-if config.config_file_name is not None:
+if config.config_file_name is not None and not config.attributes.get("from_bot"):
     fileConfig(config.config_file_name)
 
 # Alembic мигрирует синхронно (SQLite), поэтому убираем async-драйвер из URL.
