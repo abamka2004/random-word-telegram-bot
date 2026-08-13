@@ -17,6 +17,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "alembic>=1.19.1",
     "basedpyright>=1.39.9",
     "ruff>=0.16.2",
 ]
