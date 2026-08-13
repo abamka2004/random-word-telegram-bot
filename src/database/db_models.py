@@ -66,6 +66,7 @@ class Payment(Base):
 def run_migrations() -> None:
     cfg = Config("alembic.ini")
     cfg.set_main_option("script_location", "migrations")
+    cfg.attributes["from_bot"] = True
     command.upgrade(cfg, "head")
 
 
